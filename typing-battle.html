@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ タイピングバトル</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#07070f;--surface:#0d0d1c;--card:#111128;--border:#252545;
+  --green:#00ff88;--pink:#ff2266;--cyan:#00ccff;--yellow:#ffe000;
+  --text:#d8dcff;--muted:#5558aa;
+  --font-jp:'Noto Sans JP',sans-serif;--font-mono:'Share Tech Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-jp);min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.05) 3px,rgba(0,0,0,.05) 4px);}
+
+/* ── LAYOUT ── */
+#app{width:100%;max-width:860px;padding:20px 16px;}
+.screen{display:none;}
+.screen.active{display:block;}
+
+/* ── LOGO ── */
+.logo{text-align:center;margin-bottom:36px;}
+.logo h1{font-size:clamp(26px,5vw,50px);font-weight:900;color:var(--green);
+  text-shadow:0 0 30px rgba(0,255,136,.5),0 0 60px rgba(0,255,136,.2);}
+.logo .sub{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:4px;margin-top:4px;}
+
+/* ── CARD ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 24px;border:2px solid;border-radius:8px;
+  font-family:var(--font-jp);font-size:15px;font-weight:700;cursor:pointer;
+  background:transparent;transition:all .15s;}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(0);}
+.btn-primary{border-color:var(--green);color:var(--green);}
+.btn-primary:hover{background:rgba(0,255,136,.1);box-shadow:0 0 20px rgba(0,255,136,.25);}
+.btn-secondary{border-color:var(--cyan);color:var(--cyan);}
+.btn-secondary:hover{background:rgba(0,204,255,.1);box-shadow:0 0 20px rgba(0,204,255,.25);}
+.btn-full{width:100%;}
+.btn-lg{padding:15px 40px;font-size:17px;}
+
+/* ── INPUTS ── */
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:2px;
+  color:var(--muted);margin-bottom:6px;text-transform:uppercase;}
+.field input,.field select{width:100%;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--font-mono);
+  font-size:15px;outline:none;transition:border-color .2s;}
+.field input:focus{border-color:var(--green);box-shadow:0 0 10px rgba(0,255,136,.12);}
+.field select{cursor:pointer;}
+.field select option{background:var(--surface);}
+
+/* ── ERROR ── */
+.err{background:rgba(255,34,102,.1);border:1px solid var(--pink);border-radius:8px;
+  padding:9px 13px;font-size:13px;color:var(--pink);margin-top:10px;display:none;}
+
+/* ── START SCREEN ── */
+#startScreen{max-width:480px;margin:0 auto;}
+.tabs{display:flex;background:var(--surface);border-radius:10px;padding:4px;margin-bottom:20px;}
+.tab{flex:1;padding:10px;text-align:center;border-radius:7px;cursor:pointer;
+  font-weight:700;font-size:14px;color:var(--muted);transition:all .2s;}
+.tab.active{background:var(--card);color:var(--green);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.settings-row{display:flex;gap:10px;margin-bottom:14px;}
+.settings-row .field{flex:1;margin-bottom:0;}
+.foot-note{text-align:center;margin-top:16px;font-size:11px;color:var(--muted);}
+
+/* ── LOBBY ── */
+.lobby-top{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;margin-bottom:20px;}
+.room-code-box{background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:10px 14px;cursor:pointer;}
+.room-code-box:hover .code{color:var(--green);}
+.room-code-box .lbl{font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:3px;}
+.room-code-box .code{font-family:var(--font-mono);font-size:20px;color:var(--cyan);letter-spacing:3px;}
+.section-label{font-size:11px;letter-spacing:3px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:10px;}
+.player-row{display:flex;align-items:center;gap:10px;padding:10px 13px;
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  margin-bottom:7px;animation:slideIn .2s ease-out;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.avatar{width:34px;height:34px;border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;flex-shrink:0;}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-family:var(--font-mono);}
+.badge-host{background:rgba(255,224,0,.15);color:var(--yellow);}
+.badge-join{background:rgba(0,255,136,.12);color:var(--green);}
+.wait-msg{text-align:center;color:var(--muted);font-size:14px;padding:8px 0;}
+.warn-box{background:rgba(255,34,102,.1);border:1px solid var(--pink);border-radius:8px;
+  padding:8px 13px;font-size:13px;color:var(--pink);margin-bottom:10px;display:none;}
+
+/* ── COUNTDOWN ── */
+#countdownScreen{text-align:center;padding:60px 0;}
+.cnt-num{font-size:min(160px,30vw);font-weight:900;color:var(--green);line-height:1;
+  text-shadow:0 0 60px rgba(0,255,136,.7);animation:cntPop 1s ease-out;}
+@keyframes cntPop{0%{transform:scale(1.5);opacity:0}60%{transform:scale(.95)}100%{transform:scale(1);opacity:1}}
+.cnt-lbl{font-family:var(--font-mono);font-size:13px;color:var(--muted);letter-spacing:5px;margin-top:12px;}
+
+/* ── GAME SCREEN ── */
+.game-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.rnd-label{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+.rnd-label span{color:var(--cyan);font-size:16px;font-weight:700;}
+.timer-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.timer-fill{height:100%;border-radius:3px;background:var(--green);transition:width .1s linear,background .4s;}
+.timer-fill.warn{background:var(--yellow);}
+.timer-fill.dng{background:var(--pink);}
+.timer-num{font-family:var(--font-mono);font-size:13px;color:var(--yellow);white-space:nowrap;}
+
+/* Word box */
+.word-box{text-align:center;padding:28px 16px;background:var(--card);
+  border:2px solid var(--border);border-radius:12px;margin-bottom:14px;
+  transition:border-color .3s;}
+.word-box.complete{border-color:var(--green);}
+.word-jp{font-size:clamp(38px,8vw,76px);font-weight:900;line-height:1;margin-bottom:6px;}
+.word-reading{font-size:17px;color:var(--muted);margin-bottom:16px;}
+.typed-row{font-family:var(--font-mono);font-size:clamp(20px,3.5vw,32px);
+  letter-spacing:3px;min-height:44px;display:flex;align-items:center;
+  justify-content:center;flex-wrap:wrap;}
+.c-done{color:var(--green);}
+.c-cur{color:var(--text);border-bottom:3px solid var(--green);animation:blink .75s infinite;}
+@keyframes blink{50%{border-color:transparent}}
+.c-rem{color:var(--muted);}
+.word-box.wrong-flash{animation:wrongFlash .25s ease;}
+@keyframes wrongFlash{0%,100%{background:transparent}50%{background:rgba(255,34,102,.15)}}
+
+/* Leaderboard */
+.lb{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.lb-hdr{display:grid;grid-template-columns:28px 30px 1fr 100px 64px 54px;
+  align-items:center;gap:8px;padding:8px 14px;
+  font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  border-bottom:1px solid var(--border);}
+.lb-row2{display:grid;grid-template-columns:28px 30px 1fr 100px 64px 54px;
+  align-items:center;gap:8px;padding:9px 14px;
+  border-bottom:1px solid var(--border);transition:background .2s;}
+.lb-row2:last-child{border-bottom:none;}
+.lb-row2.me{background:rgba(0,255,136,.04);}
+.rank{font-family:var(--font-mono);font-size:13px;color:var(--muted);text-align:center;}
+.rank.r1{color:var(--yellow);}
+.rank.r2{color:#aaa;}
+.rank.r3{color:#cd7f32;}
+.pb-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.pb-fill{height:100%;background:var(--cyan);border-radius:3px;transition:width .3s ease;}
+.pb-fill.done{background:var(--green);}
+.lb-time{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-align:right;}
+.lb-time.done{color:var(--green);}
+.lb-score{font-family:var(--font-mono);font-size:15px;color:var(--yellow);
+  font-weight:700;text-align:right;}
+.lb-name2{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.me-tag{font-size:10px;color:var(--green);margin-left:5px;font-family:var(--font-mono);}
+
+/* ── ROUND RESULT ── */
+#roundResultScreen{text-align:center;}
+.rr-title{font-size:12px;letter-spacing:4px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.rr-word{font-size:clamp(32px,7vw,60px);font-weight:900;margin-bottom:8px;}
+.rr-reading{font-size:16px;color:var(--muted);margin-bottom:24px;}
+.result-row{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);}
+.result-row:last-child{border-bottom:none;}
+.next-msg{text-align:center;margin-top:18px;font-size:14px;color:var(--muted);font-family:var(--font-mono);}
+
+/* ── FINAL SCREEN ── */
+#finalScreen{text-align:center;}
+.final-title{font-size:clamp(28px,6vw,52px);font-weight:900;color:var(--yellow);
+  text-shadow:0 0 30px rgba(255,224,0,.4);margin-bottom:6px;}
+.final-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  letter-spacing:4px;margin-bottom:32px;}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:8px;margin:0 auto 32px;max-width:360px;}
+.pd-item{text-align:center;flex:1;}
+.pd-blk{display:flex;align-items:center;justify-content:center;
+  font-size:26px;font-weight:900;border-radius:8px 8px 0 0;color:#07070f;}
+.pd-1 .pd-blk{height:88px;background:var(--yellow);}
+.pd-2 .pd-blk{height:64px;background:#aaa;}
+.pd-3 .pd-blk{height:46px;background:#cd7f32;}
+.pd-name{font-size:12px;margin-top:7px;font-weight:700;}
+.pd-score{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+.final-list{max-width:560px;margin:0 auto;}
+.final-row{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);}
+.final-row:last-child{border-bottom:none;}
+
+/* ── TOAST ── */
+.toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(0);
+  background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:10px 20px;font-size:13px;z-index:10000;
+  animation:toastIn .3s ease;}
+@keyframes toastIn{from{transform:translateX(-50%) translateY(-16px);opacity:0}
+  to{transform:translateX(-50%) translateY(0);opacity:1}}
+
+/* ── STATUS DOT ── */
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+.dot-g{background:var(--green);box-shadow:0 0 6px var(--green);}
+.status-line{font-size:13px;color:var(--muted);}
+
+#hiddenInput{position:fixed;bottom:-200px;left:0;opacity:0;width:1px;height:1px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ═══════════════════════════ START ═══════════════════════════ -->
+<div id="startScreen" class="screen active">
+  <div class="logo"><h1>⚡ タイピングバトル</h1><div class="sub">MULTIPLAYER TYPING GAME</div></div>
+  <div class="card" style="max-width:480px;margin:0 auto;">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('create')">🏠 ルームを作成</div>
+      <div class="tab" onclick="switchTab('join')">🔗 ルームに参加</div>
+    </div>
+
+    <div id="tabCreate" class="tab-content active">
+      <div class="field"><label>プレイヤー名</label>
+        <input id="cName" type="text" placeholder="名前を入力（最大12文字）" maxlength="12"></div>
+      <div class="settings-row">
+        <div class="field"><label>ラウンド数</label>
+          <select id="cRounds"><option value="5">5ラウンド</option>
+            <option value="10" selected>10ラウンド</option><option value="15">15ラウンド</option></select></div>
+        <div class="field"><label>難易度</label>
+          <select id="cDiff"><option value="easy">かんたん</option>
+            <option value="mixed" selected>ミックス</option><option value="hard">むずかしい</option></select></div>
+      </div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="createRoom()">ルームを作成 →</button>
+      <div class="err" id="createErr"></div>
+    </div>
+
+    <div id="tabJoin" class="tab-content">
+      <div class="field"><label>プレイヤー名</label>
+        <input id="jName" type="text" placeholder="名前を入力（最大12文字）" maxlength="12"></div>
+      <div class="field"><label>ルームコード</label>
+        <input id="jCode" type="text" placeholder="ルームコードを入力"
+          style="text-transform:uppercase;letter-spacing:2px;" maxlength="8"></div>
+      <button class="btn btn-secondary btn-full btn-lg" onclick="joinRoom()">参加する →</button>
+      <div class="err" id="joinErr"></div>
+    </div>
+  </div>
+  <div class="foot-note">WebRTC (PeerJS) 使用 — サーバー不要 · GitHub Pages 対応 · 10人以上対応</div>
+</div>
+
+<!-- ═══════════════════════════ LOBBY ═══════════════════════════ -->
+<div id="lobbyScreen" class="screen">
+  <div class="logo"><h1>⚡ タイピングバトル</h1></div>
+  <div class="card">
+    <div class="lobby-top">
+      <div class="status-line"><span class="dot dot-g"></span><span id="lobbyStatus">接続済み</span></div>
+      <div id="codeBox" class="room-code-box" style="display:none;" onclick="copyCode()" title="クリックでコピー">
+        <div class="lbl">ROOM CODE（クリックでコピー）</div>
+        <div class="code" id="codeDisplay"></div>
+      </div>
+    </div>
+    <div class="section-label">参加者 (<span id="pCount">0</span>人)</div>
+    <div id="pList" style="margin-bottom:16px;"></div>
+    <div class="warn-box" id="startWarn">2人以上必要です</div>
+    <div id="hostCtrl" style="display:none;">
+      <button class="btn btn-primary btn-full btn-lg" onclick="hostStartGame()">ゲーム開始 ▶</button>
+    </div>
+    <div id="clientWait" class="wait-msg" style="display:none;">ホストがゲームを開始するまでお待ちください…</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ COUNTDOWN ═══════════════════════ -->
+<div id="countdownScreen" class="screen">
+  <div style="text-align:center;padding:60px 0;">
+    <div class="cnt-num" id="cntNum">3</div>
+    <div class="cnt-lbl" id="cntLbl">READY...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ GAME ═══════════════════════════ -->
+<div id="gameScreen" class="screen">
+  <div class="game-header">
+    <div class="rnd-label">ROUND <span id="rndDisp">1</span>/<span id="rndTotal">10</span></div>
+    <div class="timer-track"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+    <div class="timer-num">⏱ <span id="timerDisp">30</span>s</div>
+  </div>
+  <div class="word-box" id="wordBox">
+    <div class="word-jp" id="wordJP"></div>
+    <div class="word-reading" id="wordReading"></div>
+    <div class="typed-row" id="typedRow"></div>
+  </div>
+  <div class="lb">
+    <div class="lb-hdr"><span></span><span></span><span>プレイヤー</span>
+      <span>進捗</span><span style="text-align:right">タイム</span><span style="text-align:right">スコア</span></div>
+    <div id="lbRows"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ ROUND RESULT ═══════════════════ -->
+<div id="roundResultScreen" class="screen">
+  <div class="logo" style="margin-bottom:20px;">
+    <div class="rr-title">ラウンド終了</div>
+    <div class="rr-word" id="rrWord"></div>
+    <div class="rr-reading" id="rrReading"></div>
+  </div>
+  <div class="card" style="max-width:600px;margin:0 auto;">
+    <div id="rrList"></div>
+  </div>
+  <div class="next-msg" id="nextMsg"></div>
+</div>
+
+<!-- ═══════════════════════════ FINAL ═══════════════════════════ -->
+<div id="finalScreen" class="screen">
+  <div class="final-title">🏆 ゲーム終了！</div>
+  <div class="final-sub">FINAL RESULTS</div>
+  <div class="podium" id="podium"></div>
+  <div class="card final-list"><div id="finalRows"></div></div>
+  <div style="text-align:center;margin-top:24px;">
+    <button class="btn btn-primary btn-lg" onclick="reset()">もう一度プレイ</button>
+  </div>
+</div>
+
+</div><!-- #app -->
+<input id="hiddenInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+
+<script>
+// ─────────────────── WORD BANK ───────────────────
+const WORDS = [
+  // d:1 easy
+  {j:'猫',r:'ねこ',a:'neko',d:1},{j:'犬',r:'いぬ',a:'inu',d:1},
+  {j:'山',r:'やま',a:'yama',d:1},{j:'海',r:'うみ',a:'umi',d:1},
+  {j:'空',r:'そら',a:'sora',d:1},{j:'花',r:'はな',a:'hana',d:1},
+  {j:'雪',r:'ゆき',a:'yuki',d:1},{j:'月',r:'つき',a:'tsuki',d:1},
+  {j:'虹',r:'にじ',a:'niji',d:1},{j:'桜',r:'さくら',a:'sakura',d:1},
+  {j:'風',r:'かぜ',a:'kaze',d:1},{j:'雨',r:'あめ',a:'ame',d:1},
+  {j:'夢',r:'ゆめ',a:'yume',d:1},{j:'愛',r:'あい',a:'ai',d:1},
+  {j:'光',r:'ひかり',a:'hikari',d:1},{j:'星',r:'ほし',a:'hoshi',d:1},
+  {j:'水',r:'みず',a:'mizu',d:1},{j:'火',r:'ひ',a:'hi',d:1},
+  // d:2 medium
+  {j:'東京',r:'とうきょう',a:'toukyou',d:2},{j:'大阪',r:'おおさか',a:'oosaka',d:2},
+  {j:'温泉',r:'おんせん',a:'onsen',d:2},{j:'電車',r:'でんしゃ',a:'densha',d:2},
+  {j:'日本語',r:'にほんご',a:'nihongo',d:2},{j:'音楽',r:'おんがく',a:'ongaku',d:2},
+  {j:'映画',r:'えいが',a:'eiga',d:2},{j:'料理',r:'りょうり',a:'ryouri',d:2},
+  {j:'旅行',r:'りょこう',a:'ryokou',d:2},{j:'家族',r:'かぞく',a:'kazoku',d:2},
+  {j:'友達',r:'ともだち',a:'tomodachi',d:2},{j:'学校',r:'がっこう',a:'gakkou',d:2},
+  {j:'仕事',r:'しごと',a:'shigoto',d:2},{j:'時間',r:'じかん',a:'jikan',d:2},
+  {j:'世界',r:'せかい',a:'sekai',d:2},{j:'自転車',r:'じてんしゃ',a:'jitensha',d:2},
+  {j:'図書館',r:'としょかん',a:'toshokan',d:2},{j:'夏祭り',r:'なつまつり',a:'natsumatsuri',d:2},
+  {j:'天気予報',r:'てんきよほう',a:'tenkiyohou',d:2},{j:'運動場',r:'うんどうじょう',a:'undoujou',d:2},
+  // d:3 hard
+  {j:'新幹線',r:'しんかんせん',a:'shinkansen',d:3},
+  {j:'人工知能',r:'じんこうちのう',a:'jinkouchinou',d:3},
+  {j:'自動販売機',r:'じどうはんばいき',a:'jidouhanbaiki',d:3},
+  {j:'プログラミング',r:'ぷろぐらみんぐ',a:'puroguramingu',d:3},
+  {j:'東京タワー',r:'とうきょうたわー',a:'toukyoutawaa',d:3},
+  {j:'国際交流',r:'こくさいこうりゅう',a:'kokusaikouryuu',d:3},
+  {j:'環境問題',r:'かんきょうもんだい',a:'kankyoumondai',d:3},
+  {j:'経済成長',r:'けいざいせいちょう',a:'keizaiseicho',d:3},
+  {j:'情報技術',r:'じょうほうぎじゅつ',a:'jouhougizyutsu',d:3},
+  {j:'観光スポット',r:'かんこうすぽっと',a:'kankouspotto',d:3},
+];
+const RANK_PTS = [100,80,65,52,42,34,28,24,20,16,12,10,8,6,5];
+const ROUND_MS = 30000;
+const COLORS = ['#00ff88','#00ccff','#ff2266','#ffe000','#ff8800','#aa44ff','#ff44aa','#44ffcc','#4488ff','#ffaa44','#88ff44','#ff66cc'];
+const EMOJIS = ['🐱','🐶','🦊','🐼','🐨','🐯','🦁','🐸','🐧','🦄','🐺','🐻'];
+
+// ─────────────────── STATE ───────────────────
+let peer=null,isHost=false,myId='',myName='';
+let hostConn=null,clientConns=new Map();
+let players=new Map(); // id -> {name,score,color,emoji,progress,completed,time,isHost}
+let settings={rounds:10,difficulty:'mixed'};
+let selWords=[],curRound=0,curWord=null;
+let roundStart=0,myTyped='',meDone=false;
+let roundTimer=null,timerIval=null;
+
+// ─────────────────── SCREEN ───────────────────
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id+'Screen').classList.add('active');}
+
+// ─────────────────── START ───────────────────
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+  document.querySelector(`.tab[onclick="switchTab('${t}')"]`).classList.add('active');
+  document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.add('active');
+}
+function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.style.display='block';
+  setTimeout(()=>e.style.display='none',3500);}
+
+function createRoom(){
+  const n=document.getElementById('cName').value.trim();
+  if(!n){showErr('createErr','名前を入力してください');return;}
+  myName=n; settings.rounds=+document.getElementById('cRounds').value;
+  settings.difficulty=document.getElementById('cDiff').value;
+  isHost=true; initPeer(null);
+}
+function joinRoom(){
+  const n=document.getElementById('jName').value.trim();
+  const c=document.getElementById('jCode').value.trim().toUpperCase();
+  if(!n){showErr('joinErr','名前を入力してください');return;}
+  if(!c){showErr('joinErr','ルームコードを入力してください');return;}
+  myName=n; isHost=false; initPeer(c);
+}
+
+// ─────────────────── PEER INIT ───────────────────
+function initPeer(target){
+  if(peer){try{peer.destroy();}catch(e){} peer=null;}
+  peer=new Peer();
+  peer.on('open',id=>{myId=id; isHost?setupHost():connectClient(target);});
+  peer.on('error',err=>{
+    if(err.type==='peer-unavailable') showErr('joinErr','ルームが見つかりません');
+    else showErr('joinErr','エラー: '+err.message);
+  });
+}
+
+// ─────────────────── HOST ───────────────────
+function setupHost(){
+  addPlayer(myId,myName,true);
+  peer.on('connection',conn=>{
+    conn.on('open',()=>{
+      clientConns.set(conn.peer,conn);
+      conn.send({type:'WELCOME',settings,players:pArr()});
+      conn.on('data',d=>onClientMsg(conn.peer,d));
+      conn.on('close',()=>onLeft(conn.peer));
+    });
+    conn.on('error',()=>onLeft(conn.peer));
+  });
+  showLobbyHost();
+}
+function onClientMsg(id,msg){
+  switch(msg.type){
+    case 'JOIN':
+      addPlayer(id,msg.name,false); bcast({type:'PLAYER_LIST',players:pArr()}); renderLobby(); break;
+    case 'PROGRESS':
+      if(players.has(id)){const p=players.get(id);p.progress=msg.progress;p.completed=msg.completed;
+        if(msg.completed)p.time=msg.time;}
+      bcast({type:'LB',players:pArr()}); renderLB(); checkAll(); break;
+  }
+}
+function onLeft(id){players.delete(id);clientConns.delete(id);
+  bcast({type:'PLAYER_LIST',players:pArr()});renderLobby();}
+function bcast(msg){clientConns.forEach(c=>{try{c.send(msg);}catch(e){}});}
+function pArr(){return Array.from(players.entries()).map(([id,p])=>({id,...p}));}
+function addPlayer(id,name,asHost){
+  const idx=players.size;
+  players.set(id,{name,score:0,color:COLORS[idx%COLORS.length],
+    emoji:EMOJIS[idx%EMOJIS.length],progress:0,completed:false,time:0,isHost:asHost});}
+
+function hostStartGame(){
+  if(players.size<2){document.getElementById('startWarn').style.display='block';return;}
+  document.getElementById('startWarn').style.display='none';
+  selWords=selectWords();
+  bcast({type:'GAME_START',words:selWords,settings});
+  beginGame();
+}
+function selectWords(){
+  const d=settings.difficulty;
+  let pool=d==='easy'?WORDS.filter(w=>w.d===1):d==='hard'?WORDS.filter(w=>w.d>=2):WORDS;
+  return shuffle([...pool]).slice(0,settings.rounds);
+}
+
+// ─────────────────── CLIENT ───────────────────
+function connectClient(code){
+  hostConn=peer.connect(code,{reliable:true});
+  hostConn.on('open',()=>{hostConn.send({type:'JOIN',name:myName});showLobbyClient();});
+  hostConn.on('data',d=>onHostMsg(d));
+  hostConn.on('close',()=>{toast('ホストとの接続が切れました');reset();});
+  hostConn.on('error',err=>showErr('joinErr','接続失敗: '+err));
+}
+function onHostMsg(msg){
+  switch(msg.type){
+    case 'WELCOME': settings=msg.settings; syncPlayers(msg.players); renderLobby(); break;
+    case 'PLAYER_LIST': syncPlayers(msg.players); renderLobby(); break;
+    case 'GAME_START': selWords=msg.words; settings=msg.settings; beginGame(); break;
+    case 'LB': syncPlayers(msg.players); renderLB(); break;
+    case 'ROUND_END': onRoundEnd(msg); break;
+    case 'GAME_END': onGameEnd(msg); break;
+  }
+}
+function syncPlayers(arr){
+  const ids=new Set(arr.map(p=>p.id));
+  for(const [id] of players) if(!ids.has(id)) players.delete(id);
+  arr.forEach(p=>{if(players.has(p.id))Object.assign(players.get(p.id),p);else players.set(p.id,p);});
+}
+function sendHost(msg){if(hostConn&&hostConn.open)hostConn.send(msg);}
+
+// ─────────────────── LOBBY ───────────────────
+function showLobbyHost(){
+  show('lobby');
+  document.getElementById('codeBox').style.display='block';
+  document.getElementById('codeDisplay').textContent=myId.slice(0,8).toUpperCase();
+  document.getElementById('hostCtrl').style.display='block';
+  document.getElementById('clientWait').style.display='none';
+  renderLobby();
+}
+function showLobbyClient(){
+  show('lobby');
+  document.getElementById('codeBox').style.display='none';
+  document.getElementById('hostCtrl').style.display='none';
+  document.getElementById('clientWait').style.display='block';
+}
+function renderLobby(){
+  document.getElementById('pCount').textContent=players.size;
+  document.getElementById('pList').innerHTML=pArr().map(p=>`
+    <div class="player-row">
+      <div class="avatar" style="background:${p.color}22;color:${p.color};">${p.emoji}</div>
+      <div style="flex:1;font-weight:700;">${esc(p.name)}</div>
+      <div class="badge ${p.isHost?'badge-host':'badge-join'}">${p.isHost?'HOST':'参加中'}</div>
+    </div>`).join('');
+}
+function copyCode(){
+  const c=document.getElementById('codeDisplay').textContent;
+  navigator.clipboard.writeText(c).then(()=>toast('コードをコピーしました ✓'));
+}
+
+// ─────────────────── GAME START ───────────────────
+function beginGame(){
+  players.forEach(p=>{p.score=0;p.progress=0;p.completed=false;p.time=0;});
+  runCountdown(3,()=>startRound(0));
+}
+function runCountdown(n,cb){
+  show('countdown');
+  const el=document.getElementById('cntNum');
+  const lbl=document.getElementById('cntLbl');
+  el.textContent=n; resetAnim(el);
+  lbl.textContent='READY...';
+  const iv=setInterval(()=>{
+    n--;
+    if(n>0){el.textContent=n;resetAnim(el);}
+    else{clearInterval(iv);el.textContent='GO!';el.style.color='var(--cyan)';
+      lbl.textContent='START!';resetAnim(el);
+      setTimeout(cb,700);}
+  },1000);
+}
+function resetAnim(el){el.style.animation='none';void el.offsetWidth;el.style.animation='';}
+
+// ─────────────────── ROUND ───────────────────
+function startRound(idx){
+  curRound=idx; curWord=selWords[idx];
+  myTyped=''; meDone=false;
+  players.forEach(p=>{p.progress=0;p.completed=false;p.time=0;});
+
+  document.getElementById('rndDisp').textContent=idx+1;
+  document.getElementById('rndTotal').textContent=selWords.length;
+  document.getElementById('wordJP').textContent=curWord.j;
+  document.getElementById('wordReading').textContent=curWord.r;
+  document.getElementById('wordBox').className='word-box';
+  renderTyped(); renderLB();
+  show('game');
+
+  setTimeout(()=>{const inp=document.getElementById('hiddenInput');inp.value='';inp.focus();},80);
+
+  roundStart=Date.now();
+  startTimerBar();
+  if(isHost){
+    clearTimeout(roundTimer);
+    roundTimer=setTimeout(()=>hostEndRound(),ROUND_MS);
+  }
+}
+
+// ─────────────────── TYPING ───────────────────
+document.getElementById('hiddenInput').addEventListener('keydown',e=>{
+  if(!curWord||meDone)return;
+  const ch=e.key.length===1?e.key.toLowerCase():null;
+  if(!ch)return;
+  e.preventDefault();
+  const expected=curWord.a[myTyped.length];
+  if(ch===expected){
+    myTyped+=ch;
+    renderTyped();
+    const done=myTyped.length===curWord.a.length;
+    meDone=done;
+    const prog=myTyped.length/curWord.a.length;
+    const t=Date.now()-roundStart;
+    if(done){clearInterval(timerIval);document.getElementById('wordBox').classList.add('complete');}
+    if(isHost){
+      const p=players.get(myId);p.progress=prog;p.completed=done;if(done)p.time=t;
+      bcast({type:'LB',players:pArr()});renderLB();if(done)checkAll();
+    }else sendHost({type:'PROGRESS',progress:prog,completed:done,time:t});
+  }else{
+    const wb=document.getElementById('wordBox');
+    wb.classList.remove('wrong-flash');void wb.offsetWidth;wb.classList.add('wrong-flash');
+  }
+});
+// Clear any IME input immediately
+document.getElementById('hiddenInput').addEventListener('input',()=>{
+  document.getElementById('hiddenInput').value='';});
+
+function renderTyped(){
+  const s=curWord?curWord.a:'';
+  document.getElementById('typedRow').innerHTML=s.split('').map((c,i)=>
+    i<myTyped.length?`<span class="c-done">${c}</span>`:
+    i===myTyped.length?`<span class="c-cur">${c}</span>`:
+    `<span class="c-rem">${c}</span>`).join('');
+}
+
+// ─────────────────── LEADERBOARD ───────────────────
+function renderLB(){
+  const sorted=pArr().sort((a,b)=>{
+    if(a.completed!==b.completed)return a.completed?-1:1;
+    if(a.completed)return a.time-b.time;
+    return b.progress-a.progress;
+  });
+  document.getElementById('lbRows').innerHTML=sorted.map((p,i)=>`
+    <div class="lb-row2${p.id===myId?' me':''}">
+      <div class="rank${i<3?' r'+(i+1):''}">${i+1}</div>
+      <div style="font-size:17px;">${p.emoji}</div>
+      <div class="lb-name2" style="color:${p.color};">${esc(p.name)}${p.id===myId?'<span class="me-tag">YOU</span>':''}</div>
+      <div class="pb-track"><div class="pb-fill${p.completed?' done':''}" style="width:${Math.round(p.progress*100)}%"></div></div>
+      <div class="lb-time${p.completed?' done':''}">${p.completed?(p.time/1000).toFixed(2)+'s':Math.round(p.progress*100)+'%'}</div>
+      <div class="lb-score">${p.score}</div>
+    </div>`).join('');
+}
+
+// ─────────────────── TIMER ───────────────────
+function startTimerBar(){
+  clearInterval(timerIval);
+  timerIval=setInterval(()=>{
+    const left=Math.max(0,ROUND_MS-(Date.now()-roundStart));
+    const pct=left/ROUND_MS*100;
+    const fill=document.getElementById('timerFill');
+    fill.style.width=pct+'%';
+    fill.className='timer-fill'+(pct<20?' dng':pct<40?' warn':'');
+    document.getElementById('timerDisp').textContent=Math.ceil(left/1000);
+  },100);
+}
+
+// ─────────────────── ROUND END (HOST) ───────────────────
+function checkAll(){
+  if(!isHost)return;
+  if(pArr().every(p=>p.completed)){clearTimeout(roundTimer);clearInterval(timerIval);hostEndRound();}
+}
+function hostEndRound(){
+  if(!isHost)return;
+  clearTimeout(roundTimer);clearInterval(timerIval);
+  const ranked=pArr().sort((a,b)=>{
+    if(a.completed!==b.completed)return a.completed?-1:1;
+    if(a.completed)return a.time-b.time;
+    return b.progress-a.progress;
+  });
+  const results=ranked.map((p,i)=>{
+    const pts=p.completed?(RANK_PTS[i]||5):0;
+    players.get(p.id).score+=pts;
+    return{id:p.id,name:p.name,color:p.color,emoji:p.emoji,
+      completed:p.completed,time:p.time,pts,score:players.get(p.id).score};
+  });
+  const isLast=curRound>=selWords.length-1;
+  const msg={type:'ROUND_END',word:curWord,results,isLast,next:curRound+1};
+  bcast(msg); onRoundEnd(msg);
+  if(isLast){
+    setTimeout(()=>{
+      const gm={type:'GAME_END',final:pArr().sort((a,b)=>b.score-a.score)};
+      bcast(gm);onGameEnd(gm);
+    },3200);
+  }
+}
+
+function onRoundEnd(msg){
+  clearInterval(timerIval);
+  msg.results.forEach(r=>{if(players.has(r.id))players.get(r.id).score=r.score;});
+  document.getElementById('rrWord').textContent=msg.word.j;
+  document.getElementById('rrReading').textContent=msg.word.r+' / '+msg.word.a;
+  document.getElementById('rrList').innerHTML=msg.results.map((r,i)=>`
+    <div class="result-row">
+      <div class="rank${i<3?' r'+(i+1):''}" style="width:28px;text-align:center;">${i+1}</div>
+      <div style="font-size:17px;margin-right:4px;">${r.emoji}</div>
+      <div style="flex:1;font-weight:700;color:${r.color}">${esc(r.name)}</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:${r.completed?'var(--green)':'var(--muted)'};">
+        ${r.completed?(r.time/1000).toFixed(2)+'s':'未完了'}</div>
+      <div class="lb-score" style="margin-left:12px;">+${r.pts}</div>
+    </div>`).join('');
+  show('roundResult');
+  if(msg.isLast){
+    document.getElementById('nextMsg').textContent='最終結果を集計中…';
+  }else{
+    const nx=msg.next+1;
+    document.getElementById('nextMsg').textContent=`次のラウンド (${nx}/${selWords.length}) まで3秒…`;
+    setTimeout(()=>startRound(msg.next),3200);
+  }
+}
+
+// ─────────────────── GAME END ───────────────────
+function onGameEnd(msg){
+  clearInterval(timerIval);clearTimeout(roundTimer);
+  const final=msg.final||pArr().sort((a,b)=>b.score-a.score);
+  // Podium
+  const medals=['🥇','🥈','🥉'];
+  const podOrder=[1,0,2].map(i=>final[i]).filter(Boolean);
+  const podCls=['pd-2','pd-1','pd-3'];
+  document.getElementById('podium').innerHTML=podOrder.map((p,i)=>`
+    <div class="pd-item ${podCls[i]}">
+      <div style="font-size:22px;margin-bottom:4px;">${p.emoji}</div>
+      <div class="pd-blk">${medals[[1,0,2][i]]}</div>
+      <div class="pd-name" style="color:${p.color}">${esc(p.name)}</div>
+      <div class="pd-score">${p.score}pt</div>
+    </div>`).join('');
+  // Full list
+  document.getElementById('finalRows').innerHTML=final.map((p,i)=>`
+    <div class="final-row">
+      <div class="rank${i<3?' r'+(i+1):''}" style="width:28px;text-align:center;">${i+1}</div>
+      <div style="font-size:17px;">${p.emoji}</div>
+      <div style="flex:1;font-weight:700;color:${p.color}">${esc(p.name)}
+        ${p.id===myId?'<span class="me-tag">YOU</span>':''}</div>
+      <div style="font-family:var(--font-mono);font-size:17px;color:var(--yellow);font-weight:700;">
+        ${p.score}<span style="font-size:11px;color:var(--muted);margin-left:2px;">pt</span></div>
+    </div>`).join('');
+  show('final');
+  confetti();
+}
+
+// ─────────────────── UTILS ───────────────────
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2600);}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function confetti(){
+  if(!document.getElementById('fallKf')){
+    const s=document.createElement('style');s.id='fallKf';
+    s.textContent='@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:0}}';
+    document.head.appendChild(s);}
+  for(let i=0;i<40;i++) setTimeout(()=>{
+    const el=document.createElement('div');
+    const c=COLORS[Math.floor(Math.random()*COLORS.length)];
+    el.style.cssText=`position:fixed;top:-16px;left:${Math.random()*100}vw;
+      width:8px;height:8px;background:${c};border-radius:2px;z-index:9998;pointer-events:none;
+      animation:fall ${1.4+Math.random()*1.2}s linear forwards;`;
+    document.body.appendChild(el);setTimeout(()=>el.remove(),3000);
+  },i*60);
+}
+function reset(){
+  clearTimeout(roundTimer);clearInterval(timerIval);
+  if(peer){try{peer.destroy();}catch(e){}}
+  peer=null;hostConn=null;players.clear();clientConns.clear();
+  isHost=false;curWord=null;myTyped='';meDone=false;selWords=[];
+  show('start');
+}
+
+// Keep focus on hidden input during game
+document.addEventListener('click',()=>{
+  const gs=document.getElementById('gameScreen');
+  if(gs.classList.contains('active')) document.getElementById('hiddenInput').focus();
+});
+</script>
+</body>
+</html>
